@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+*.spec
+
+# Processing output and local test recordings
+polished/
+samples/
+
+# Notebook caches (separated stems of your recordings)
+notebooks/.cache/
+.ipynb_checkpoints/

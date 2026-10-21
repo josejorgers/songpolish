@@ -1,0 +1,71 @@
+[project]
+name = "songpolish"
+version = "0.1.0"
+description = "Automatic, gentle polishing for singer-songwriter recordings: noise cleanup, natural pitch correction, vocal/guitar tone and mastering."
+readme = "README.md"
+authors = [
+    { name = "Jose J. Rodriguez", email = "josejorgers@proton.me" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "imageio-ffmpeg>=0.6.0",
+    "librosa>=1.0.0",
+    "noisereduce>=3.0.3",
+    "numpy>=2.5.4",
+    "pedalboard>=0.9.26",
+    "pyloudnorm>=0.2.0",
+    "pyside6>=6.12.0",
+    "scipy>=1.18.1",
+    "soundfile>=0.14.0",
+]
+
+[project.optional-dependencies]
+# Splits a single voice+guitar take into stems so the voice can be pitch-corrected.
+# Heavy (PyTorch), hence optional. CPU wheels are used on Linux/Windows (see [tool.uv.sources]).
+separation = [
+    "demucs>=4.0.1",
+    "torch>=2.4",
+    "torchaudio>=2.4",
+]
+
+[project.scripts]
+songpolish = "songpolish.cli:main"
+songpolish-gui = "songpolish.gui.app:main"
+
+[build-system]
+requires = ["uv_build>=0.10.8,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]
+notebooks = [
+    "ipykernel>=7.4.0",
+    "jupyterlab>=4.6.4",
+    "matplotlib>=3.11.2",
+    "nbclient>=0.11.0",
+    "nbformat>=5.11.1",
+]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }]
+torchaudio = [{ index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.ruff]
+line-length = 100
+# Teaching notebooks favour readability over lint rules (star imports, inline imports).
+extend-exclude = ["notebooks/*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "NPY"]
+ignore = ["E501"]  # ruff format owns line length
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
