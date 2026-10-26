@@ -8,6 +8,7 @@ import sys
 from dataclasses import fields
 from pathlib import Path
 
+from songpolish import thresholds
 from songpolish.melody import TargetStrategy
 from songpolish.pipeline import Inputs, process
 from songpolish.settings import DEFAULT_PRESET, PRESETS, PitchMode, preset
@@ -45,12 +46,51 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--lufs", type=float, help="target loudness (default from preset, e.g. -14)")
     p.add_argument("--keep-tuning", action="store_true", help="do not retune the take to A=440")
     p.add_argument("--no-separation", action="store_true", help="never split a single take")
+    p.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="override an engine threshold, in the units --thresholds shows (repeatable)",
+    )
+    p.add_argument("--thresholds", action="store_true", help="list the thresholds and exit")
     p.add_argument("--json", action="store_true", help="print the report as JSON")
     return p
 
 
+def list_thresholds() -> None:
+    defaults = thresholds.defaults()
+    for group in thresholds.GROUPS:
+        print(f"{group}:")
+        for t in thresholds.THRESHOLDS:
+            if t.group == group:
+                value = f"{t.to_shown(defaults[t.name]):g} {t.unit}".strip()
+                print(f"  {t.name:<20} {value:<16} {t.lo:g}..{t.hi:g}  {t.label}")
+
+
+def parse_overrides(items: list[str]) -> dict[str, float]:
+    """``["tolerance_cents=15"]`` (shown units) -> engine units, validated."""
+    out = {}
+    for item in items:
+        name, sep, value = item.partition("=")
+        name = name.strip()
+        if not sep or name not in thresholds.BY_NAME:
+            raise ValueError(f"--set expects NAME=VALUE with a name from --thresholds: {item!r}")
+        out[name] = thresholds.BY_NAME[name].from_shown(float(value))
+    thresholds.validate(out)
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.thresholds:
+        list_thresholds()
+        return 0
+    try:
+        custom = parse_overrides(args.set)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
     overrides = {
         "pitch_correction": args.pitch,
         "pitch_mode": PitchMode(args.pitch_mode) if args.pitch_mode else None,
@@ -63,6 +103,7 @@ def main(argv: list[str] | None = None) -> int:
         "target_lufs": args.lufs,
         "fix_reference_tuning": False if args.keep_tuning else None,
         "separate": False if args.no_separation else None,
+        "thresholds": custom or None,
     }
     valid = {f.name for f in fields(PRESETS[args.preset])}
     settings = preset(

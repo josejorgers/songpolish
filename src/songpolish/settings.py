@@ -8,7 +8,7 @@ concrete parameters. Keep the number of knobs small: the product promise is
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 
 from songpolish.melody import TargetStrategy
@@ -49,6 +49,15 @@ class Settings:
     true_peak_db: float = -1.0
     # Separate a single mixed take into voice + guitar (needs the `separation` extra).
     separate: bool = True
+    # Expert overrides of engine thresholds, by name (see songpolish.thresholds), in engine
+    # units. Empty = the tuned defaults.
+    thresholds: dict[str, float] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        # UIs hand back plain strings (Qt item data drops the enum type); the engine
+        # compares strategies by identity, so normalise here.
+        object.__setattr__(self, "pitch_mode", PitchMode(self.pitch_mode))
+        object.__setattr__(self, "note_targeting", TargetStrategy(self.note_targeting))
 
     def to_dict(self) -> dict:
         d = asdict(self)

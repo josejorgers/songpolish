@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-from songpolish import analysis, mastering, pitch, separation, tone
+from songpolish import analysis, mastering, pitch, separation, thresholds, tone
 from songpolish.audio_io import WORK_SR, load, match_length, save, to_mono, to_stereo
 from songpolish.melody import TargetStrategy
 from songpolish.settings import PitchMode, Settings
@@ -116,11 +116,25 @@ def process(
 ) -> Result:
     """Polish one recording. With ``strategies``, render one version per wrong-note
     strategy (sharing separation, analysis and the guitar chain) for side-by-side
-    comparison: ``<name>_polished_<strategy>.wav``."""
+    comparison: ``<name>_polished_<strategy>.wav``. ``settings.thresholds`` override
+    engine thresholds for this job only."""
     inputs.validate()
-    out_dir = Path(out_dir)
+    with thresholds.applied(settings.thresholds):
+        return _process(inputs, settings, Path(out_dir), progress, sr, strategies)
+
+
+def _process(
+    inputs: Inputs,
+    settings: Settings,
+    out_dir: Path,
+    progress: ProgressFn,
+    sr: int,
+    strategies: list[TargetStrategy] | None,
+) -> Result:
     t0 = time.monotonic()
     report: dict = {"settings": settings.to_dict(), "notes": []}
+    if custom := thresholds.changed(settings.thresholds):
+        report["notes"].append("Custom thresholds: " + thresholds.describe(custom))
 
     progress("Loading audio", 0.0)
     if inputs.mix:

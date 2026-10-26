@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=SongPolish
+GenericName=Recording polisher
+Comment=Gently polish voice + guitar recordings: pitch, cleanup and mastering
+Exec=SongPolish %F
+Icon=songpolish
+Terminal=false
+Categories=AudioVideo;Audio;

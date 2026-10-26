@@ -48,6 +48,20 @@ Ozone (paid) are excellent alternatives.**
 
 ## Install
 
+### Installer (no Python needed)
+
+Download the file for your system from the repository's **Releases** page:
+
+- **Windows**: `SongPolish-<version>-windows-setup.exe`, run it (no administrator rights needed).
+- **macOS** (Apple Silicon): `SongPolish-<version>-macos-arm64.dmg`, drag SongPolish to Applications.
+- **Linux**: `SongPolish-<version>-x86_64.AppImage`, make it executable and run it.
+
+Everything is included, including the separation model, so it works offline. The
+installers are not code-signed, so the first launch shows a warning; see
+[packaging/README.md](packaging/README.md#unsigned-builds-first-launch) for the click-through.
+
+### From source
+
 Requires [uv](https://docs.astral.sh/uv/) and Python 3.12+. Works on Linux,
 macOS and Windows.
 
@@ -67,13 +81,22 @@ The first single-take run downloads the separation model (~80 MB, cached).
 uv run songpolish-gui
 ```
 
-1. Pick **One take** or **Separate tracks** and choose your file(s).
-2. Pick a **Style**: *Natural* (barely there), *Balanced* (default) or
+1. Pick **Takes with voice and guitar together** and add one or more recordings
+   (or drop them on the list), or **Separate tracks** and choose both files.
+2. Choose where to **Save** the edited songs (default: `~/Downloads/polished`).
+3. Pick a **Style**: *Natural* (barely there), *Balanced* (default) or
    *Polished* (tighter, more produced). Adjust sliders only if you want to.
-3. Press **Polish my recording**, then compare **Original** and **Polished**.
-   Switching keeps the playback position.
-
-Results are written to a `polished/` folder next to your recording.
+   The combination the first musician preferred is **Wrong notes: Follow the
+   phrase** + **Stick to the key**.
+4. Optional: **▸ Advanced thresholds** opens the engine's tuned limits (one tab
+   per stage: sung notes, wrong notes, key changes, ghost voice, EQ, tuning).
+   Hover over each one for what it does; changed values are shown in bold and listed
+   in the report. **Save setup… / Load setup…** keep a setup in a JSON file, and the
+   app remembers the last one you used.
+5. Press **Polish**. Songs are processed one after another (**Stop after this song**
+   ends the batch). Each finished song appears under **Edited songs**: select it and
+   compare **Original** and **Polished** (switching keeps the playback position).
+   With *one version per wrong-note strategy*, each version is listed separately.
 
 ### Command line
 
@@ -83,6 +106,8 @@ uv run songpolish my_take.wav -p natural --reverb 0.1         # preset + overrid
 uv run songpolish --vocal vox.wav --guitar gtr.wav -o out/    # separate tracks
 uv run songpolish my_take.wav --pitch-mode key --pitch 0.9    # tighter, in-key correction
 uv run songpolish my_take.wav --compare                       # 3 versions, one per wrong-note strategy
+uv run songpolish --thresholds                                # list the expert thresholds
+uv run songpolish my_take.wav --set tolerance_cents=15 --set key_change_cost=6
 uv run songpolish --help
 ```
 
@@ -108,6 +133,14 @@ uv run songpolish --help
 | Space (reverb) | 0–1 | 0.3 | Small room; voice gets more than guitar |
 | Voice ↔ guitar | ±6 dB | 0 | Voice level relative to the guitar (on a single take, raising it adds some separated voice, with its artefacts) |
 | Loudness | LUFS | -14 | -16 quiet/dynamic, -11 loud |
+
+**Advanced thresholds** (desktop app: ▸ Advanced thresholds; CLI: `--set name=value`,
+listed with `--thresholds`). These are the limits the engine was tuned with, such as how
+close a note must be to count as in tune, how faint a "note" must be to count as guitar
+bleed, how reluctant the key detection is to see a modulation, how much ghost voice is
+taken from the guitar, and when the EQ may boost. Defaults were set on real recordings;
+change one at a time to fix something specific you hear. Values outside a safe range are
+refused. They are defined, with explanations, in `src/songpolish/thresholds.py`.
 
 ## Limitations (MVP)
 

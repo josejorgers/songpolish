@@ -6,15 +6,31 @@ falls back to whole-mix processing (no vocal pitch correction).
 
 from __future__ import annotations
 
+import os
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 
 from songpolish.audio_io import WORK_SR, to_stereo
 
 MODEL_NAME = "htdemucs"
+# A folder holding <MODEL_NAME>.yaml and its .safetensors (the Hugging Face repo files).
+# Installers ship the model there so the app works offline from the first run.
+MODEL_DIR_ENV = "SONGPOLISH_MODEL_DIR"
+
+
+def bundled_model_dir() -> Path | None:
+    candidates = [os.environ.get(MODEL_DIR_ENV)]
+    if getattr(sys, "frozen", False):
+        candidates.append(str(Path(getattr(sys, "_MEIPASS", "")) / "models" / MODEL_NAME))
+    for c in candidates:
+        if c and (Path(c) / f"{MODEL_NAME}.yaml").is_file():
+            return Path(c)
+    return None
 
 
 @dataclass
@@ -34,9 +50,19 @@ def is_available() -> bool:
 
 @lru_cache(maxsize=1)
 def _model():
-    from demucs.pretrained import get_model
+    folder = bundled_model_dir()
+    if folder is None:
+        from demucs.pretrained import get_model
 
-    model = get_model(MODEL_NAME)  # downloads ~80 MB on first use
+        model = get_model(MODEL_NAME)  # downloads ~80 MB on first use
+    else:
+        import yaml
+        from demucs.apply import BagOfModels
+        from demucs.hf import load_safetensors_model
+
+        bag = yaml.safe_load((folder / f"{MODEL_NAME}.yaml").read_text())
+        models = [load_safetensors_model(folder / f"{sig}.safetensors") for sig in bag["models"]]
+        model = BagOfModels(models, bag.get("weights"), bag.get("segment"))
     model.eval()
     return model
 

@@ -1,0 +1,127 @@
+# Builds the desktop installers on Linux, macOS and Windows, tests each installed build
+# (SongPolish --self-test), and on a version tag (v0.1.0) attaches them to a *draft*
+# GitHub release, to be reviewed and published by hand. See packaging/README.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04  # oldest glibc we support: the AppImage runs on 2.35+
+            platform: linux
+          - os: macos-14  # Apple Silicon
+            platform: macos
+          - os: windows-latest
+            platform: windows
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Qt runtime libraries
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 \
+            libpulse0 libxcb-cursor0
+
+      - name: Install
+        run: uv sync --locked --extra separation --group release
+
+      - name: Version
+        run: |
+          VERSION=$(uv run python -c "import importlib.metadata as m; print(m.version('songpolish'))")
+          if [[ "$GITHUB_REF" == refs/tags/v* && "${GITHUB_REF#refs/tags/v}" != "$VERSION" ]]; then
+            echo "Tag ${GITHUB_REF#refs/tags/} does not match pyproject version $VERSION"; exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Tests
+        run: uv run pytest -q
+
+      - name: Bundle the app
+        run: |
+          uv run python packaging/fetch_model.py
+          uv run pyinstaller --noconfirm --distpath dist --workpath build/pyinstaller \
+            packaging/songpolish.spec
+
+      - name: Self-test (Linux)
+        if: matrix.platform == 'linux'
+        run: dist/SongPolish/SongPolish --self-test
+
+      - name: Self-test (macOS)
+        if: matrix.platform == 'macos'
+        run: dist/SongPolish.app/Contents/MacOS/SongPolish --self-test
+
+      - name: Self-test (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        # A windowed exe writes to a log file instead of the console, and the shell
+        # does not wait for it.
+        run: |
+          $p = Start-Process -FilePath dist\SongPolish\SongPolish.exe -ArgumentList '--self-test' -Wait -PassThru -NoNewWindow
+          Get-Content "$env:LOCALAPPDATA\SongPolish\songpolish.log" -ErrorAction SilentlyContinue
+          exit $p.ExitCode
+
+      - name: Package (Linux AppImage)
+        if: matrix.platform == 'linux'
+        run: packaging/linux/build_appimage.sh "$VERSION"
+
+      - name: Package (macOS disk image)
+        if: matrix.platform == 'macos'
+        run: |
+          mkdir -p build/dmg
+          cp -R dist/SongPolish.app build/dmg/
+          ln -s /Applications build/dmg/Applications
+          hdiutil create -volname SongPolish -srcfolder build/dmg -ov -format UDZO \
+            "dist/SongPolish-$VERSION-macos-arm64.dmg"
+
+      - name: Package (Windows installer)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DVersion=$env:VERSION" packaging\windows\installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: songpolish-${{ matrix.platform }}
+          path: |
+            dist/*.AppImage
+            dist/*.dmg
+            dist/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" installers/* --repo "$GITHUB_REPOSITORY" \
+            --draft --generate-notes --title "SongPolish ${GITHUB_REF_NAME#v}"

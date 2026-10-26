@@ -23,8 +23,10 @@ uv run pytest -k pitch          # subset
 uv run ruff check . && uv run ruff format .
 uv run songpolish <take.wav>    # CLI
 uv run songpolish <take.wav> --compare   # one version per wrong-note strategy, for listening tests
+uv run songpolish --thresholds           # expert thresholds; override with --set name=value
 uv run songpolish-gui           # desktop app
 QT_QPA_PLATFORM=offscreen uv run python ...   # headless Qt (CI / smoke tests)
+git tag v<version> && git push origin v<version>   # installers for all 3 OSes -> draft release
 uv sync --extra separation --group notebooks && uv run jupyter lab notebooks/   # explanatory notebooks
 ```
 
@@ -38,6 +40,7 @@ the printed numbers. They are excluded from ruff; `nbtools.py` is not.
 ```
 src/songpolish/
   settings.py    Settings dataclass (all user knobs, 0..1) + PRESETS (natural/balanced/polished)
+  thresholds.py  registry of expert overrides for engine constants (unit, safe range, help)
   audio_io.py    load/save; internal format = float32 (channels, samples) @ 44.1 kHz
   separation.py  optional Demucs voice/accompaniment split (lazy torch import)
   analysis.py    tuning offset, key (and key changes over time), LUFS, octave-band spectrum
@@ -48,7 +51,10 @@ src/songpolish/
   mastering.py   stem balance, reverb, bus glue, loudness + true-peak limiting
   pipeline.py    process(Inputs, Settings, out_dir, progress) → Result   ← single entry point
   cli.py         argparse wrapper around pipeline.process
-  gui/app.py     PySide6 window; runs pipeline on a QThread; A/B player
+  gui/app.py     PySide6 window: batch of songs on a QThread, thresholds panel, saved
+                 setups (QSettings + JSON), A/B player per edited song / version
+packaging/       PyInstaller spec, entry point (+ --self-test), AppImage / dmg / Inno Setup;
+                 built by .github/workflows/release.yml (see packaging/README.md)
 tests/           synthetic signals with known ground truth (conftest.py builds them)
 ```
 
@@ -85,6 +91,16 @@ viperx 1297) took ~47 min per 4-min song on CPU vs ~6 for Demucs; not worth it h
   alignment). Pitch shifting uses `stretch_factor=1.0`.
 - **Honest A/B:** the reference file is loudness-matched with only a transparent
   limiter. Never compare against a quieter original.
+- **Expert thresholds go through `thresholds.py`.** The engine keeps reading its
+  module constants; `pipeline.process` wraps each job in `thresholds.applied(...)`, which
+  sets the overrides and restores them (under a lock, so jobs with overrides never
+  overlap). To expose a constant, add a `Threshold` (engine units, shown units via
+  `scale`, a range that keeps it natural, a help text); never bind such a constant at
+  import time (default arguments, `from x import CONST`, derived constants), or the
+  override silently does nothing. `Settings.thresholds` holds only changed values.
+- **UIs hand back strings.** Qt item data loses the `StrEnum` type, and the engine
+  compares strategies with `is`; `Settings.__post_init__` normalises them. (Before that,
+  the GUI crashed on every run in `to_dict`.)
 - **Report what happened.** Anything detected or skipped goes into the report
   dict; the GUI and CLI render it.
 
@@ -241,6 +257,10 @@ Check EQ decisions by printing the measured band levels against `TARGET_SPECTRUM
 - `librosa.estimate_tuning` returns a fraction of a semitone in [-0.5, 0.5).
 - PyTorch CPU wheels come from the `pytorch-cpu` index on Linux/Windows
   (`[tool.uv.sources]` in pyproject); macOS uses PyPI wheels.
+
+- Installers bundle the Demucs model (`separation.bundled_model_dir`). After adding a
+  dependency, rebuild and run `SongPolish --self-test`: PyInstaller misses data files and
+  lazily imported modules silently, and only the frozen app shows it.
 
 ## Style
 

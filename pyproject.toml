@@ -48,6 +48,10 @@ notebooks = [
     "nbclient>=0.11.0",
     "nbformat>=5.11.1",
 ]
+release = [
+    "pillow>=13.0.0",
+    "pyinstaller>=6.22.3",
+]
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }]
