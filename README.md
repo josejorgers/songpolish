@@ -182,3 +182,10 @@ uv sync --extra separation
 uv run pytest          # synthetic-signal tests with known ground truth
 uv run ruff check . && uv run ruff format .
 ```
+
+## License
+
+SongPolish is free software under the [GNU General Public License v3.0](LICENSE)
+(GPL-3.0-only). It uses [pedalboard](https://github.com/spotify/pedalboard) (GPLv3, with the
+Rubber Band pitch shifter), PySide6/Qt (LGPLv3), PyTorch and Demucs (BSD/MIT) and
+other permissively licensed libraries; the installers bundle them under their own licenses.

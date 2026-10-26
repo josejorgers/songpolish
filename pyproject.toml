@@ -3,6 +3,8 @@ name = "songpolish"
 version = "0.1.0"
 description = "Automatic, gentle polishing for singer-songwriter recordings: noise cleanup, natural pitch correction, vocal/guitar tone and mastering."
 readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
 authors = [
     { name = "Jose J. Rodriguez", email = "josejorgers@proton.me" }
 ]
