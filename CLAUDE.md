@@ -26,7 +26,7 @@ uv run songpolish <take.wav> --compare   # one version per wrong-note strategy, 
 uv run songpolish --thresholds           # expert thresholds; override with --set name=value
 uv run songpolish-gui           # desktop app
 QT_QPA_PLATFORM=offscreen uv run python ...   # headless Qt (CI / smoke tests)
-git tag v<version> && git push origin v<version>   # installers for all 3 OSes -> draft release
+git tag v<version> && git push origin v<version>   # installers for all 3 OSes -> draft release (follow /release: .claude/skills/release/SKILL.md)
 uv sync --extra separation --group notebooks && uv run jupyter lab notebooks/   # explanatory notebooks
 ```
 
